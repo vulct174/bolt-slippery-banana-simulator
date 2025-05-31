@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .animate-bounce {
+    animation: bounce 1s infinite;
+  }
+  
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+  
+  .animate-spin {
+    animation: spin 2s linear infinite;
+  }
+  
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  .hover\:scale-102:hover {
+    transform: scale(1.02);
+  }
+  
+  .hover\:rotate-12:hover {
+    transform: rotate(12deg);
+  }
+  
+  .hover\:-rotate-12:hover {
+    transform: rotate(-12deg);
+  }
+  
+  .hover\:rotate-25:hover {
+    transform: rotate(25deg);
+  }
+  
+  .hover\:-rotate-25:hover {
+    transform: rotate(-25deg);
+  }
+  
+  .hover\:rotate-45:hover {
+    transform: rotate(45deg);
+  }
+  
+  .hover\:-rotate-45:hover {
+    transform: rotate(-45deg);
+  }
+}
