@@ -1,89 +1,95 @@
-import React, { useEffect, useState } from 'react';
-import { BananaIncident } from '../types';
-import { fetchBananaIncidents, fetchNewIncident } from '../utils/api';
-import IncidentCard from './IncidentCard';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Incident, IncidentsResponse } from '../types/incident';
+import { AlertCircle, Loader } from 'lucide-react';
 
-interface IncidentFeedProps {
-  soundEnabled: boolean;
-}
-
-const IncidentFeed: React.FC<IncidentFeedProps> = ({ soundEnabled }) => {
-  const [incidents, setIncidents] = useState<BananaIncident[]>([]);
+const IncidentFeed: React.FC = () => {
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [slipSound] = useState<HTMLAudioElement | null>(() => {
-    if (typeof window !== 'undefined') {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2954/2954-preview.mp3');
-      audio.volume = 0.5;
-      return audio;
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const observer = useRef<IntersectionObserver>();
+
+  const fetchIncidents = async (pageNum: number) => {
+    try {
+      const response = await fetch(`/api/incidents?page=${pageNum}&limit=20`);
+      if (!response.ok) throw new Error('Failed to fetch incidents');
+      const data: IncidentsResponse = await response.json();
+      
+      setIncidents(prev => pageNum === 1 ? data.incidents : [...prev, ...data.incidents]);
+      setHasMore(data.incidents.length === data.limit);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load incidents. Please try again later.');
+    } finally {
+      setLoading(false);
     }
-    return null;
-  });
+  };
 
-  useEffect(() => {
-    const loadIncidents = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchBananaIncidents(8);
-        setIncidents(data);
-        setError(null);
-      } catch (err) {
-        setError('Failed to fetch banana incidents. The bananas are too slippery!');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadIncidents();
-  }, []);
-
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const newIncident = await fetchNewIncident();
-        setIncidents(prevIncidents => [newIncident, ...prevIncidents.slice(0, 9)]);
-        
-        if (soundEnabled && slipSound) {
-          slipSound.currentTime = 0;
-          slipSound.play().catch(() => {
-            // Ignore errors from autoplay restrictions
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching new incident:', err);
-      }
-    }, 5000); // New incident every 5 seconds
+  const lastIncidentRef = useCallback((node: HTMLDivElement) => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
     
-    return () => clearInterval(intervalId);
-  }, [soundEnabled, slipSound]);
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        setPage(prev => prev + 1);
+      }
+    });
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 min-h-[300px]">
-        <div className="text-6xl animate-spin">🍌</div>
-        <p className="mt-4 text-lg text-yellow-800 font-medium">Loading banana incidents...</p>
-      </div>
-    );
-  }
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore]);
+
+  useEffect(() => {
+    fetchIncidents(page);
+  }, [page]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchIncidents(1);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (error) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-        <strong className="font-bold">Oh no! </strong>
-        <span className="block sm:inline">{error}</span>
+      <div className="flex items-center justify-center p-4 bg-red-50 rounded-lg">
+        <AlertCircle className="text-red-500 mr-2" />
+        <p className="text-red-700">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold text-yellow-800 mb-6 text-center">Live Banana Incident Feed</h2>
+    <div className="space-y-4">
+      {incidents.map((incident, index) => (
+        <div
+          key={incident.id}
+          ref={index === incidents.length - 1 ? lastIncidentRef : null}
+          className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md transform transition-all duration-300 hover:scale-102"
+        >
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                {incident.user}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mt-1">
+                {incident.action}
+              </p>
+              <time className="text-sm text-gray-400 dark:text-gray-500">
+                {new Date(incident.timestamp).toLocaleString()}
+              </time>
+            </div>
+            <div className="text-3xl">🍌</div>
+          </div>
+        </div>
+      ))}
       
-      <div className="space-y-4 animate-feed">
-        {incidents.map((incident, index) => (
-          <IncidentCard key={incident.id} incident={incident} index={index} />
-        ))}
-      </div>
+      {loading && (
+        <div className="flex justify-center p-4">
+          <Loader className="animate-spin text-yellow-500" />
+        </div>
+      )}
     </div>
   );
 };

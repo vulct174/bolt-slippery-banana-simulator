@@ -1,95 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Bolt } from 'lucide-react';
-import Header from './components/Header';
 import IncidentFeed from './components/IncidentFeed';
-import Footer from './components/Footer';
+import SlipButton from './components/SlipButton';
 
 function App() {
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
-  const [buttonSound, setButtonSound] = useState<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    // Initialize sound effects
-    if (typeof window !== 'undefined') {
-      setButtonSound(new Audio('https://assets.mixkit.co/active_storage/sfx/270/270-preview.mp3'));
-    }
-  }, []);
-
-  const toggleSound = () => {
-    const newSoundState = !soundEnabled;
-    setSoundEnabled(newSoundState);
-    
-    // Play button click sound if enabling sound
-    if (newSoundState && buttonSound) {
-      buttonSound.currentTime = 0;
-      buttonSound.play().catch(() => {
-        // Ignore errors from autoplay restrictions
-      });
-    }
-  };
-
   return (
-    <div className="min-h-screen flex flex-col bg-yellow-50 relative overflow-x-hidden">
-      {/* Banana background patterns */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -right-20 top-40 text-8xl opacity-10 rotate-12">🍌</div>
-        <div className="absolute -left-10 top-80 text-9xl opacity-10 -rotate-12">🍌</div>
-        <div className="absolute right-10 bottom-40 text-7xl opacity-10 rotate-45">🍌</div>
-        <div className="absolute left-20 bottom-20 text-8xl opacity-10 -rotate-25">🍌</div>
-        <div className="absolute left-1/2 top-1/4 text-6xl opacity-5">🍌</div>
-      </div>
-
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        .animate-feed > div {
-          opacity: 0;
-          transform: translateY(20px);
-          animation: slideIn 0.5s ease-out forwards;
-        }
-      `}</style>
-      
-      {/* Main content */}
-      <Header soundEnabled={soundEnabled} toggleSound={toggleSound} />
-      
-      <main className="flex-grow relative z-10">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="bg-gradient-to-b from-yellow-200 to-yellow-100 rounded-xl shadow-lg p-6 mb-8">
-            <h2 className="text-2xl font-bold text-yellow-800 mb-4">🍌 Welcome to the Slippery Zone! 🍌</h2>
-            <p className="text-yellow-900">
-              Ever wondered what happens when people encounter random bananas in the wild? 
-              Our advanced banana monitoring system tracks slip-ups, mishaps, and banana-related 
-              incidents happening across the globe in real-time! Watch as unsuspecting victims face the 
-              ultimate fruit-based challenge.
-            </p>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-yellow-400 dark:bg-yellow-600 shadow-lg">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-center mb-4">
+            <span className="text-6xl">🍌</span>
+            <h1 className="text-4xl font-bold text-yellow-900 dark:text-yellow-100 ml-4">
+              Slippery Banana Simulator
+            </h1>
           </div>
-          
-          <IncidentFeed soundEnabled={soundEnabled} />
+          <p className="text-center text-xl text-yellow-800 dark:text-yellow-200">
+            Watch the Banana Mayhem Unfold!
+          </p>
         </div>
-        
-        {/* Bolt.new badge */}
-        <div className="fixed bottom-6 right-6 z-50">
-          <a 
-            href="https://bolt.new" 
-            target="_blank" 
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <SlipButton />
+        </div>
+
+        <IncidentFeed />
+      </main>
+
+      <footer className="bg-yellow-100 dark:bg-yellow-800 py-4 mt-8">
+        <div className="max-w-4xl mx-auto px-4 flex justify-between items-center">
+          <p className="text-yellow-800 dark:text-yellow-200">
+            © 2025 Slippery Banana Simulator
+          </p>
+          <a
+            href="https://bolt.new"
+            target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center bg-white rounded-full p-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100"
           >
-            <Bolt className="text-yellow-500" size={24} />
+            <Bolt size={20} />
+            Made with Bolt.new
           </a>
         </div>
-      </main>
-      
-      <Footer />
+      </footer>
     </div>
   );
 }
