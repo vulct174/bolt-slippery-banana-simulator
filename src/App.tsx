@@ -10,6 +10,8 @@ function App() {
     startSimulationBot();
   }, []);
 
+  const redditUrl = "https://www.reddit.com/r/SlipperyBanana/comments/1l8o3ot/official_banana_incident_thread_report_your_chaos/";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-900 dark:to-gray-800">
       <header className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400 shadow-lg">
@@ -21,18 +23,18 @@ function App() {
             </h1>
             <span className="text-6xl animate-bounce">🍌</span>
           </div>
-          <p className="text-center text-xl md:text-2xl text-yellow-800 dark:text-yellow-200 font-medium">
+          <p className="text-center text-xl md:text-2xl text-yellow-800 dark:text-yellow-200 font-medium mb-6">
             Watch the Banana Mayhem Unfold!
           </p>
-          <div className="flex justify-center mt-6">
+          <div className="flex justify-center">
             <a
-              href="https://www.reddit.com/r/gaming/"
+              href={redditUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+              className="group bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
             >
-              <span className="text-xl">🍌</span>
-              Join the Chaos
+              <span className="text-xl group-hover:animate-spin">🍌</span>
+              Join the Chaos 🍌
             </a>
           </div>
         </div>
