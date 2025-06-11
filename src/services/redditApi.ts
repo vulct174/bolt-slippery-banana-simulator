@@ -1,29 +1,75 @@
-import { RedditResponse, RedditComment, BananaIncident } from '../types/reddit';
+import { redditAuth } from './redditAuth';
+import { BananaIncident } from '../lib/supabase';
 
-const REDDIT_API_URL = 'https://www.reddit.com/r/SlipperyBanana/comments/1l8o3ot.json';
+interface RedditComment {
+  kind: string;
+  data: {
+    author: string;
+    body: string;
+    created_utc: number;
+    id: string;
+    replies?: {
+      kind: string;
+      data: {
+        children: RedditComment[];
+      };
+    };
+  };
+}
+
+interface RedditResponse {
+  kind: string;
+  data: {
+    children: RedditComment[];
+  };
+}
+
+const SUBREDDIT = 'SlipperyBanana';
+const POST_ID = '1l8o3ot';
+const PUBLIC_API_URL = `https://www.reddit.com/r/${SUBREDDIT}/comments/${POST_ID}.json`;
+const OAUTH_API_URL = `https://oauth.reddit.com/comments/${POST_ID}`;
 
 // Cache to store fetched data
 let cachedIncidents: BananaIncident[] = [];
 let lastFetchTime = 0;
 const CACHE_DURATION = 30000; // 30 seconds
 
+const isValidComment = (comment: RedditComment): boolean => {
+  if (comment.kind !== 't1') return false;
+  if (!comment.data.author || comment.data.author === '[deleted]') return false;
+  if (!comment.data.body || comment.data.body === '[deleted]') return false;
+  if (comment.data.body.trim().length < 10) return false;
+  
+  // Filter out AutoModerator and common bot accounts
+  const botNames = ['AutoModerator', 'BotDefense', 'sneakpeekbot'];
+  if (botNames.includes(comment.data.author)) return false;
+  
+  return true;
+};
+
 const parseRedditComments = (comments: RedditComment[]): BananaIncident[] => {
+  const seenComments = new Set<string>();
+  
   return comments
-    .filter(comment => 
-      comment.kind === 't1' && 
-      comment.data.author && 
-      comment.data.author !== '[deleted]' &&
-      comment.data.body && 
-      comment.data.body !== '[deleted]' &&
-      comment.data.body.trim().length > 0
-    )
+    .filter(comment => {
+      if (!isValidComment(comment)) return false;
+      
+      // Check for duplicates based on content
+      const contentHash = `${comment.data.author}-${comment.data.body.slice(0, 50)}`;
+      if (seenComments.has(contentHash)) return false;
+      seenComments.add(contentHash);
+      
+      return true;
+    })
     .map(comment => ({
       id: comment.data.id,
       author: `u/${comment.data.author}`,
-      body: comment.data.body,
-      timestamp: new Date(comment.data.created_utc * 1000).toISOString()
+      action: comment.data.body,
+      created_at: new Date(comment.data.created_utc * 1000).toISOString(),
+      source: 'reddit',
+      reddit_id: comment.data.id
     }))
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
 export const fetchRedditIncidents = async (): Promise<BananaIncident[]> => {
@@ -35,7 +81,21 @@ export const fetchRedditIncidents = async (): Promise<BananaIncident[]> => {
   }
 
   try {
-    const response = await fetch(REDDIT_API_URL);
+    let response: Response;
+    
+    // Try authenticated request first if configured
+    if (redditAuth.isConfigured()) {
+      console.log('🔐 Using authenticated Reddit API');
+      try {
+        response = await redditAuth.makeAuthenticatedRequest(OAUTH_API_URL);
+      } catch (authError) {
+        console.warn('⚠️ Authenticated request failed, falling back to public API:', authError);
+        response = await fetch(PUBLIC_API_URL);
+      }
+    } else {
+      console.log('🌐 Using public Reddit API');
+      response = await fetch(PUBLIC_API_URL);
+    }
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -55,12 +115,14 @@ export const fetchRedditIncidents = async (): Promise<BananaIncident[]> => {
     cachedIncidents = incidents;
     lastFetchTime = now;
     
+    console.log(`📥 Fetched ${incidents.length} banana incidents from Reddit`);
     return incidents;
   } catch (error) {
-    console.error('Failed to fetch Reddit data:', error);
+    console.error('❌ Failed to fetch Reddit data:', error);
     
     // If we have cached data, return it even if stale
     if (cachedIncidents.length > 0) {
+      console.log('📦 Returning cached data due to fetch failure');
       return cachedIncidents;
     }
     

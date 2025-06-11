@@ -21,9 +21,5 @@ export interface RedditResponse {
   };
 }
 
-export interface BananaIncident {
-  id: string;
-  author: string;
-  body: string;
-  timestamp: string;
-}
+// Re-export BananaIncident from supabase lib
+export type { BananaIncident } from '../lib/supabase';

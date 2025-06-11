@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { BananaIncident } from '../types/reddit';
+import { BananaIncident } from '../lib/supabase';
 import { fetchIncidents } from '../services/api';
-import { AlertCircle, Loader, RefreshCw } from 'lucide-react';
+import { AlertCircle, Loader, RefreshCw, Database, Globe } from 'lucide-react';
 
 const IncidentFeed: React.FC = () => {
   const [incidents, setIncidents] = useState<BananaIncident[]>([]);
@@ -10,6 +10,7 @@ const IncidentFeed: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState<'supabase' | 'reddit'>('supabase');
   const observer = useRef<IntersectionObserver>();
 
   const loadIncidents = async (pageNum: number, append: boolean = false) => {
@@ -23,6 +24,14 @@ const IncidentFeed: React.FC = () => {
       setIncidents(prev => append ? [...prev, ...data.incidents] : data.incidents);
       setHasMore(data.hasMore);
       setError(null);
+      
+      // Detect data source based on response
+      if (data.incidents.length > 0) {
+        const hasSupabaseIds = data.incidents.some(incident => 
+          incident.id && incident.id.includes('-') && incident.id.length > 10
+        );
+        setDataSource(hasSupabaseIds ? 'supabase' : 'reddit');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '🍌 Banana slip! Couldn\'t load chaos. Try again.';
       setError(errorMessage);
@@ -61,7 +70,7 @@ const IncidentFeed: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       loadIncidents(1, false);
-    }, 10000); // Refresh every 10 seconds
+    }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
@@ -84,9 +93,24 @@ const IncidentFeed: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-          Recent Banana Chaos from Reddit
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+            Recent Banana Chaos
+          </h2>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+            {dataSource === 'supabase' ? (
+              <>
+                <Database size={14} className="text-green-600 dark:text-green-400" />
+                <span className="text-xs font-medium text-green-700 dark:text-green-300">Live DB</span>
+              </>
+            ) : (
+              <>
+                <Globe size={14} className="text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Reddit API</span>
+              </>
+            )}
+          </div>
+        </div>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
@@ -118,14 +142,19 @@ const IncidentFeed: React.FC = () => {
         >
           <div className="flex justify-between items-start">
             <div className="flex-1">
-              <h3 className="text-lg font-bold text-yellow-600 dark:text-yellow-400 mb-1">
-                {incident.author}
-              </h3>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                  {incident.author}
+                </h3>
+                <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                  {incident.source}
+                </span>
+              </div>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-2">
-                {incident.body}
+                {incident.action}
               </p>
               <time className="text-sm text-gray-400 dark:text-gray-500">
-                {new Date(incident.timestamp).toLocaleString()}
+                {new Date(incident.created_at).toLocaleString()}
               </time>
             </div>
             <div className="text-3xl ml-4 animate-bounce">🍌</div>

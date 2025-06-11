@@ -1,11 +1,92 @@
-import { BananaIncident } from '../types/reddit';
-import { fetchRedditIncidents, paginateIncidents } from './redditApi';
+import { BananaIncident } from '../lib/supabase';
+import { fetchRedditIncidents } from './redditApi';
+import { saveIncidentsToSupabase, fetchIncidentsFromSupabase } from './supabaseService';
 
-// For the "I Slipped!" button - we'll add to a local array
-let userIncidents: BananaIncident[] = [];
-let nextId = 1;
+// Fetch and save comments from Reddit to Supabase
+export const fetchAndSaveCommentsFromReddit = async (): Promise<number> => {
+  try {
+    console.log('🔄 Starting Reddit fetch and save process...');
+    
+    // Fetch latest comments from Reddit
+    const redditIncidents = await fetchRedditIncidents();
+    
+    if (redditIncidents.length === 0) {
+      console.log('📭 No new incidents found on Reddit');
+      return 0;
+    }
+    
+    // Save to Supabase
+    const newIncidentsCount = await saveIncidentsToSupabase(redditIncidents);
+    
+    console.log(`✅ Successfully processed ${redditIncidents.length} Reddit comments, ${newIncidentsCount} were new`);
+    return newIncidentsCount;
+  } catch (error) {
+    console.error('❌ Error in fetchAndSaveCommentsFromReddit:', error);
+    throw error;
+  }
+};
 
-// Simulated POST /api/incidents for user submissions
+// Fetch incidents for display (from Supabase)
+export const fetchIncidents = async (page: number = 1, limit: number = 20): Promise<{
+  incidents: BananaIncident[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}> => {
+  try {
+    return await fetchIncidentsFromSupabase(page, limit);
+  } catch (error) {
+    console.error('❌ Error fetching incidents for display:', error);
+    
+    // Fallback to Reddit API if Supabase fails
+    try {
+      console.log('🔄 Falling back to Reddit API...');
+      const redditIncidents = await fetchRedditIncidents();
+      
+      const start = (page - 1) * limit;
+      const end = start + limit;
+      
+      return {
+        incidents: redditIncidents.slice(start, end),
+        page,
+        limit,
+        total: redditIncidents.length,
+        hasMore: end < redditIncidents.length
+      };
+    } catch (fallbackError) {
+      console.error('❌ Fallback to Reddit API also failed:', fallbackError);
+      throw new Error('🍌 Banana slip! Couldn\'t load chaos from any source. Try again.');
+    }
+  }
+};
+
+// Start the periodic Reddit fetching
+export const startSimulationBot = () => {
+  console.log('🤖 Starting Reddit comment fetcher bot...');
+  
+  // Initial fetch
+  fetchAndSaveCommentsFromReddit().catch(error => {
+    console.error('❌ Initial Reddit fetch failed:', error);
+  });
+  
+  // Set up periodic fetching every 10 minutes
+  const intervalId = setInterval(() => {
+    fetchAndSaveCommentsFromReddit().catch(error => {
+      console.error('❌ Periodic Reddit fetch failed:', error);
+    });
+  }, 600000); // 10 minutes = 600,000 milliseconds
+  
+  console.log('⏰ Reddit fetcher scheduled to run every 10 minutes');
+  
+  // Return cleanup function
+  return () => {
+    clearInterval(intervalId);
+    console.log('🛑 Reddit fetcher bot stopped');
+  };
+};
+
+// Legacy function for user submissions (if needed)
 export const createIncident = async (user: string, action: string): Promise<{
   success: boolean;
   incident: BananaIncident;
@@ -23,50 +104,22 @@ export const createIncident = async (user: string, action: string): Promise<{
   }
   
   const newIncident: BananaIncident = {
-    id: `user_${nextId++}`,
+    id: `user_${Date.now()}`,
     author: `u/${user}`,
-    body: action,
-    timestamp: new Date().toISOString()
+    action: action,
+    created_at: new Date().toISOString(),
+    source: 'user'
   };
   
-  userIncidents.unshift(newIncident);
-  
-  // Keep only last 100 user incidents
-  if (userIncidents.length > 100) {
-    userIncidents = userIncidents.slice(0, 100);
-  }
-  
-  return {
-    success: true,
-    incident: newIncident
-  };
-};
-
-// Fetch incidents combining Reddit data with user submissions
-export const fetchIncidents = async (page: number = 1, limit: number = 20): Promise<{
-  incidents: BananaIncident[];
-  page: number;
-  limit: number;
-  total: number;
-  hasMore: boolean;
-}> => {
   try {
-    const redditIncidents = await fetchRedditIncidents();
+    await saveIncidentsToSupabase([newIncident]);
     
-    // Combine Reddit incidents with user incidents
-    const allIncidents = [...userIncidents, ...redditIncidents]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    
-    return paginateIncidents(allIncidents, page, limit);
+    return {
+      success: true,
+      incident: newIncident
+    };
   } catch (error) {
-    // If Reddit fetch fails, just return user incidents
-    console.warn('Reddit fetch failed, showing user incidents only:', error);
-    return paginateIncidents(userIncidents, page, limit);
+    console.error('❌ Failed to save user incident:', error);
+    throw new Error('Failed to save your banana incident. Try again!');
   }
-};
-
-// Remove simulation bot since we're using real data
-export const startSimulationBot = () => {
-  // No longer needed - we're using real Reddit data
-  console.log('Using real Reddit data instead of simulation');
 };
