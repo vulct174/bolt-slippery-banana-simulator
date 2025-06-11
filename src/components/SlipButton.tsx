@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Check } from 'lucide-react';
+import { createIncident } from '../services/api';
 
 const generateRandomUsername = () => {
   const prefix = "BananaPro";
@@ -26,18 +27,8 @@ const SlipButton: React.FC = () => {
     setFeedback(null);
 
     try {
-      const response = await fetch('/api/incidents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user: generateRandomUsername(),
-          action: "slipped on a banana peel!"
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to record slip');
-
-      setFeedback({ type: 'success', message: 'Slip recorded successfully!' });
+      await createIncident(generateRandomUsername(), "slipped on a banana peel!");
+      setFeedback({ type: 'success', message: 'Slip recorded successfully! 🍌' });
       setCooldown(5);
     } catch (err) {
       setFeedback({ type: 'error', message: 'Failed to record slip. Try again!' });
@@ -52,21 +43,33 @@ const SlipButton: React.FC = () => {
         onClick={handleSlip}
         disabled={isLoading || cooldown > 0}
         className={`
-          px-6 py-3 rounded-full font-bold text-lg
+          px-8 py-4 rounded-full font-bold text-xl
           transform transition-all duration-300
           ${isLoading || cooldown > 0
-            ? 'bg-gray-300 cursor-not-allowed'
-            : 'bg-yellow-400 hover:bg-yellow-500 hover:scale-105 active:scale-95'
+            ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+            : 'bg-yellow-400 hover:bg-yellow-500 hover:scale-105 active:scale-95 text-yellow-900 shadow-lg hover:shadow-xl'
           }
         `}
       >
-        {cooldown > 0 ? `Wait ${cooldown}s` : 'I Slipped! 🍌'}
+        {isLoading ? (
+          <span className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-900"></div>
+            Recording...
+          </span>
+        ) : cooldown > 0 ? (
+          `Wait ${cooldown}s`
+        ) : (
+          'I Slipped! 🍌'
+        )}
       </button>
 
       {feedback && (
         <div className={`
-          flex items-center gap-2 p-2 rounded-lg
-          ${feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}
+          flex items-center gap-2 p-3 rounded-lg transition-all duration-300
+          ${feedback.type === 'success' 
+            ? 'bg-green-100 text-green-700 border border-green-200' 
+            : 'bg-red-100 text-red-700 border border-red-200'
+          }
         `}>
           {feedback.type === 'success' ? (
             <Check size={18} />

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Incident, IncidentsResponse } from '../types/incident';
+import { Incident } from '../types/incident';
+import { fetchIncidents } from '../services/api';
 import { AlertCircle, Loader } from 'lucide-react';
 
 const IncidentFeed: React.FC = () => {
@@ -10,13 +11,11 @@ const IncidentFeed: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const observer = useRef<IntersectionObserver>();
 
-  const fetchIncidents = async (pageNum: number) => {
+  const loadIncidents = async (pageNum: number, append: boolean = false) => {
     try {
-      const response = await fetch(`/api/incidents?page=${pageNum}&limit=20`);
-      if (!response.ok) throw new Error('Failed to fetch incidents');
-      const data: IncidentsResponse = await response.json();
+      const data = await fetchIncidents(pageNum, 20);
       
-      setIncidents(prev => pageNum === 1 ? data.incidents : [...prev, ...data.incidents]);
+      setIncidents(prev => append ? [...prev, ...data.incidents] : data.incidents);
       setHasMore(data.incidents.length === data.limit);
       setError(null);
     } catch (err) {
@@ -40,12 +39,16 @@ const IncidentFeed: React.FC = () => {
   }, [loading, hasMore]);
 
   useEffect(() => {
-    fetchIncidents(page);
+    if (page === 1) {
+      loadIncidents(1, false);
+    } else {
+      loadIncidents(page, true);
+    }
   }, [page]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchIncidents(1);
+      loadIncidents(1, false);
     }, 10000);
 
     return () => clearInterval(interval);
@@ -62,14 +65,19 @@ const IncidentFeed: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <h2 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mb-4">
+        Recent Banana Incidents
+      </h2>
+      
       {incidents.map((incident, index) => (
         <div
           key={incident.id}
           ref={index === incidents.length - 1 ? lastIncidentRef : null}
-          className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md transform transition-all duration-300 hover:scale-102"
+          className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md transform transition-all duration-300 hover:scale-102 animate-in slide-in-from-top-2"
+          style={{ animationDelay: `${index * 50}ms` }}
         >
           <div className="flex justify-between items-start">
-            <div>
+            <div className="flex-1">
               <h3 className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
                 {incident.user}
               </h3>
@@ -80,14 +88,21 @@ const IncidentFeed: React.FC = () => {
                 {new Date(incident.timestamp).toLocaleString()}
               </time>
             </div>
-            <div className="text-3xl">🍌</div>
+            <div className="text-3xl animate-bounce">🍌</div>
           </div>
         </div>
       ))}
       
       {loading && (
         <div className="flex justify-center p-4">
-          <Loader className="animate-spin text-yellow-500" />
+          <Loader className="animate-spin text-yellow-500" size={24} />
+          <span className="ml-2 text-yellow-600">Loading more incidents...</span>
+        </div>
+      )}
+      
+      {!hasMore && incidents.length > 0 && (
+        <div className="text-center p-4 text-gray-500">
+          No more incidents to load
         </div>
       )}
     </div>
