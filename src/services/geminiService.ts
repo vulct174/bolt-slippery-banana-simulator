@@ -1,49 +1,23 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BananaIncident } from '../lib/supabase';
+import { supabase, BananaIncident } from '../lib/supabase';
 
 class GeminiService {
-  private genAI: GoogleGenerativeAI | null = null;
-  private model: any = null;
+  private supabaseUrl: string;
 
   constructor() {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    this.supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     
-    if (!apiKey) {
-      console.warn('⚠️ Gemini API key not configured. Narrative generation will be disabled.');
-      return;
-    }
-
-    try {
-      this.genAI = new GoogleGenerativeAI(apiKey);
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
-      console.log('✅ Gemini AI service initialized');
-    } catch (error) {
-      console.error('❌ Failed to initialize Gemini AI:', error);
+    if (!this.supabaseUrl) {
+      console.warn('⚠️ Supabase URL not configured. Narrative generation will be disabled.');
     }
   }
 
   isConfigured(): boolean {
-    return this.genAI !== null && this.model !== null;
-  }
-
-  private createPrompt(incidents: BananaIncident[]): string {
-    const incidentList = incidents
-      .map(incident => `- ${incident.author}: ${incident.action}`)
-      .join('\n');
-
-    return `Turn the following list of banana-related Reddit user actions into a silly, absurd, chaotic narrative report. 
-
-Make it fun and entertaining, like a news report from a fictional banana chaos simulator game. Use emojis and keep it under 500 characters. Start with "🍌 **Banana Chaos Report #X**" where X is a random number.
-
-Recent banana incidents:
-${incidentList}
-
-Create a short, funny report that summarizes these incidents in an entertaining way. End with "Stay slippery. More chaos soon..." or similar.`;
+    return !!this.supabaseUrl;
   }
 
   async generateNarrative(incidents: BananaIncident[]): Promise<string> {
     if (!this.isConfigured()) {
-      throw new Error('Gemini AI service not configured');
+      throw new Error('Gemini service not configured');
     }
 
     if (incidents.length === 0) {
@@ -51,12 +25,24 @@ Create a short, funny report that summarizes these incidents in an entertaining 
     }
 
     try {
-      const prompt = this.createPrompt(incidents);
-      console.log('🤖 Generating narrative with Gemini AI...');
+      console.log('🤖 Generating narrative with Gemini AI via Edge Function...');
       
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const narrative = response.text();
+      // Call the secure Edge Function instead of direct API
+      const response = await fetch(`${this.supabaseUrl}/functions/v1/generate-narrative`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ incidents })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate narrative');
+      }
+
+      const { narrative } = await response.json();
 
       if (!narrative || narrative.trim().length === 0) {
         throw new Error('Empty response from Gemini AI');
