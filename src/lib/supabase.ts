@@ -18,3 +18,12 @@ export interface BananaIncident {
   source: string;
   reddit_id?: string;
 }
+
+export interface Narrative {
+  id: string;
+  content: string;
+  created_at: string;
+  comment_id?: string;
+  incident_count: number;
+  hash: string;
+}

@@ -83,14 +83,18 @@ class RedditAuthService {
     return await this.authenticate();
   }
 
-  async makeAuthenticatedRequest(url: string): Promise<Response> {
+  async makeAuthenticatedRequest(url: string, options?: RequestInit): Promise<Response> {
     const token = await this.getAccessToken();
     
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'User-Agent': this.config.userAgent,
+      ...(options?.headers || {})
+    };
+
     return fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'User-Agent': this.config.userAgent
-      }
+      ...options,
+      headers
     });
   }
 

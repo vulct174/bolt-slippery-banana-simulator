@@ -1,13 +1,17 @@
 import React, { useEffect } from 'react';
 import { Bolt } from 'lucide-react';
 import IncidentFeed from './components/IncidentFeed';
+import NarrativeFeed from './components/NarrativeFeed';
 import SlipButton from './components/SlipButton';
 import { startSimulationBot } from './services/api';
 
 function App() {
   useEffect(() => {
     // Start the simulation bot when the app loads
-    startSimulationBot();
+    const cleanup = startSimulationBot();
+    
+    // Cleanup on unmount
+    return cleanup;
   }, []);
 
   const redditUrl = "https://www.reddit.com/r/SlipperyBanana/comments/1l8o3ot/official_banana_incident_thread_report_your_chaos/";
@@ -15,7 +19,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-900 dark:to-gray-800">
       <header className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400 shadow-lg">
-        <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="flex items-center justify-center mb-4">
             <span className="text-6xl animate-bounce">🍌</span>
             <h1 className="text-4xl md:text-5xl font-bold text-yellow-900 dark:text-yellow-100 ml-4 text-center">
@@ -40,16 +44,26 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8 text-center">
           <SlipButton />
         </div>
 
-        <IncidentFeed />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left column - Recent incidents */}
+          <div>
+            <IncidentFeed />
+          </div>
+          
+          {/* Right column - AI narratives */}
+          <div>
+            <NarrativeFeed />
+          </div>
+        </div>
       </main>
 
       <footer className="bg-yellow-100 dark:bg-yellow-800 py-6 mt-12">
-        <div className="max-w-4xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-yellow-800 dark:text-yellow-200 text-center md:text-left">
             © 2025 Slippery Banana Simulator - Slip responsibly! 🍌
           </p>
