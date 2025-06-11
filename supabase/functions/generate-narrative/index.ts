@@ -1,11 +1,11 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.2.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -18,48 +18,42 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
     
     if (!geminiApiKey) {
+      console.error('❌ Gemini API key not configured')
       throw new Error('Gemini API key not configured')
     }
+
+    console.log(`🤖 Generating narrative for ${incidents.length} incidents...`)
+
+    // Initialize Gemini AI
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     // Create prompt for Gemini
     const incidentList = incidents
       .map((incident: any) => `- ${incident.author}: ${incident.action}`)
       .join('\n')
 
+    const reportNumber = Math.floor(Math.random() * 9999) + 1;
+
     const prompt = `Turn the following list of banana-related Reddit user actions into a silly, absurd, chaotic narrative report. 
 
-Make it fun and entertaining, like a news report from a fictional banana chaos simulator game. Use emojis and keep it under 500 characters. Start with "🍌 **Banana Chaos Report #X**" where X is a random number.
+Make it fun and entertaining, like a news report from a fictional banana chaos simulator game. Use emojis and keep it under 500 characters. Start with "🍌 **Banana Chaos Report #${reportNumber}**".
 
 Recent banana incidents:
 ${incidentList}
 
-Create a short, funny report that summarizes these incidents in an entertaining way. End with "Stay slippery. More chaos soon..." or similar.`
+Create a short, funny report that summarizes these incidents in an entertaining way. End with "Stay slippery! 🍌" or similar.`
 
-    // Call Gemini API
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    })
+    // Generate content
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const narrative = response.text();
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`)
+    if (!narrative || narrative.trim().length === 0) {
+      throw new Error('Empty response from Gemini AI')
     }
 
-    const data = await response.json()
-    const narrative = data.candidates?.[0]?.content?.parts?.[0]?.text
-
-    if (!narrative) {
-      throw new Error('No narrative generated')
-    }
+    console.log('✅ Narrative generated successfully')
 
     return new Response(
       JSON.stringify({ narrative: narrative.trim() }),
@@ -68,6 +62,7 @@ Create a short, funny report that summarizes these incidents in an entertaining 
       },
     )
   } catch (error) {
+    console.error('❌ Error in generate-narrative function:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

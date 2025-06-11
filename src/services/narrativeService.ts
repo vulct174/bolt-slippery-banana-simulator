@@ -1,6 +1,5 @@
 import { supabase, BananaIncident, Narrative } from '../lib/supabase';
 import { geminiService } from './geminiService';
-import { redditAuth } from './redditAuth';
 
 const SUBREDDIT = 'SlipperyBanana';
 const POST_ID = '1l8o3ot';
@@ -78,46 +77,30 @@ export class NarrativeService {
   }
 
   async postNarrativeToReddit(content: string): Promise<string | null> {
-    if (!redditAuth.isConfigured()) {
-      console.warn('⚠️ Reddit authentication not configured. Cannot post narrative.');
-      return null;
-    }
-
     try {
-      console.log('📝 Posting narrative to Reddit...');
+      console.log('📝 Posting narrative to Reddit via Edge Function...');
       
-      const response = await redditAuth.makeAuthenticatedRequest(
-        `https://oauth.reddit.com/api/comment`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            api_type: 'json',
-            text: content,
-            thing_id: `t3_${POST_ID}` // t3_ prefix for submissions
-          })
-        }
-      );
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/post-reddit-comment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content })
+      });
 
       if (!response.ok) {
-        throw new Error(`Reddit API error: ${response.status} ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to post to Reddit');
       }
 
       const result = await response.json();
       
-      if (result.json?.errors && result.json.errors.length > 0) {
-        throw new Error(`Reddit API errors: ${JSON.stringify(result.json.errors)}`);
-      }
-
-      const commentId = result.json?.data?.things?.[0]?.data?.id;
-      
-      if (commentId) {
-        console.log('✅ Narrative posted to Reddit successfully:', commentId);
-        return commentId;
+      if (result.success) {
+        console.log('✅ Narrative posted to Reddit successfully:', result.commentId);
+        return result.commentId;
       } else {
-        console.warn('⚠️ Narrative posted but no comment ID returned');
+        console.warn('⚠️ Reddit posting failed:', result.error);
         return null;
       }
     } catch (error) {
@@ -143,6 +126,8 @@ export class NarrativeService {
         return { success: false, error: 'Not enough incidents for narrative generation' };
       }
 
+      console.log(`📊 Found ${incidents.length} recent incidents for narrative generation`);
+
       // Generate narrative
       const content = await geminiService.generateNarrative(incidents);
       
@@ -153,11 +138,8 @@ export class NarrativeService {
         return { success: false, error: 'Generated narrative is duplicate' };
       }
 
-      // Post to Reddit (optional)
-      let commentId: string | null = null;
-      if (redditAuth.isConfigured()) {
-        commentId = await this.postNarrativeToReddit(content);
-      }
+      // Post to Reddit
+      const commentId = await this.postNarrativeToReddit(content);
 
       // Save to database
       const narrative = await this.saveNarrative(content, incidents.length, commentId || undefined);
