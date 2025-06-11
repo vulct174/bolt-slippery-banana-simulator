@@ -3,6 +3,7 @@ import { Bolt } from 'lucide-react';
 import IncidentFeed from './components/IncidentFeed';
 import NarrativeFeed from './components/NarrativeFeed';
 import SlipButton from './components/SlipButton';
+import BoltBadge from './components/BoltBadge';
 import { startSimulationBot } from './services/api';
 
 function App() {
@@ -78,6 +79,9 @@ function App() {
           </a>
         </div>
       </footer>
+
+      {/* Bolt.new Competition Badge */}
+      <BoltBadge />
     </div>
   );
 }
