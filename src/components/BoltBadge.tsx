@@ -11,7 +11,7 @@ const BoltBadge: React.FC = () => {
         aria-label="Made with Bolt.new"
       >
         <img
-          src="/bolt-badge.png"
+          src="/white_circle_360x360.png"
           alt="Bolt.new Badge"
           className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 drop-shadow-lg hover:drop-shadow-xl transition-all duration-300"
           loading="lazy"
