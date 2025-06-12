@@ -27,7 +27,7 @@ export const fetchAndSaveCommentsFromReddit = async (): Promise<number> => {
   }
 };
 
-// Generate and post narrative summary
+// Generate and post narrative summary with improved error handling
 export const generateNarrativeSummary = async (): Promise<void> => {
   try {
     console.log('🎭 Starting narrative generation...');
@@ -35,15 +35,17 @@ export const generateNarrativeSummary = async (): Promise<void> => {
     const result = await narrativeService.generateAndPostNarrative();
     
     if (result.success) {
-      console.log('🎉 Narrative generated and posted successfully');
       if (result.narrative?.comment_id) {
-        console.log(`📝 Posted to Reddit with comment ID: ${result.narrative.comment_id}`);
+        console.log(`🎉 Narrative generated and posted to Reddit successfully! Comment ID: ${result.narrative.comment_id}`);
+      } else {
+        console.log('🎉 Narrative generated and saved locally (Reddit posting was skipped due to rate limits or errors)');
       }
     } else {
       console.log(`⚠️ Narrative generation skipped: ${result.error}`);
     }
   } catch (error) {
     console.error('❌ Error in generateNarrativeSummary:', error);
+    // Don't throw the error - just log it to prevent breaking the interval
   }
 };
 
@@ -82,7 +84,7 @@ export const fetchIncidents = async (page: number = 1, limit: number = 20): Prom
   }
 };
 
-// Start the periodic Reddit fetching and narrative generation
+// Start the periodic Reddit fetching and narrative generation with improved timing
 export const startSimulationBot = () => {
   console.log('🤖 Starting Reddit comment fetcher and narrative generator bot...');
   
@@ -91,33 +93,33 @@ export const startSimulationBot = () => {
     console.error('❌ Initial Reddit fetch failed:', error);
   });
   
-  // Set up periodic fetching every 10 minutes
+  // Set up periodic fetching every 5 minutes (reduced from 10 to get more data)
   const fetchIntervalId = setInterval(() => {
     console.log('⏰ Running scheduled Reddit fetch...');
     fetchAndSaveCommentsFromReddit().catch(error => {
       console.error('❌ Periodic Reddit fetch failed:', error);
     });
-  }, 600000); // 10 minutes = 600,000 milliseconds
+  }, 300000); // 5 minutes = 300,000 milliseconds
   
-  // Set up periodic narrative generation every 10 minutes (offset by 5 minutes)
+  // Set up periodic narrative generation every 15 minutes (increased to reduce rate limiting)
   const narrativeIntervalId = setInterval(() => {
     console.log('⏰ Running scheduled narrative generation...');
     generateNarrativeSummary().catch(error => {
       console.error('❌ Periodic narrative generation failed:', error);
     });
-  }, 600000); // 10 minutes = 600,000 milliseconds
+  }, 900000); // 15 minutes = 900,000 milliseconds
   
-  // Generate initial narrative after 2 minutes to let some data accumulate
+  // Generate initial narrative after 5 minutes to let more data accumulate
   setTimeout(() => {
     console.log('⏰ Running initial narrative generation...');
     generateNarrativeSummary().catch(error => {
       console.error('❌ Initial narrative generation failed:', error);
     });
-  }, 120000); // 2 minutes = 120,000 milliseconds
+  }, 300000); // 5 minutes = 300,000 milliseconds
   
-  console.log('⏰ Reddit fetcher scheduled to run every 10 minutes');
-  console.log('🎭 Narrative generator scheduled to run every 10 minutes (offset by 5 minutes)');
-  console.log('🚀 Initial narrative generation will run in 2 minutes');
+  console.log('⏰ Reddit fetcher scheduled to run every 5 minutes');
+  console.log('🎭 Narrative generator scheduled to run every 15 minutes');
+  console.log('🚀 Initial narrative generation will run in 5 minutes');
   
   // Return cleanup function
   return () => {

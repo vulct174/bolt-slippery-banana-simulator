@@ -20,6 +20,10 @@ interface RedditErrorResponse {
   message?: string;
 }
 
+// Rate limiting state (per-function instance)
+let lastPostTime = 0;
+const MIN_POST_INTERVAL = 10000; // 10 seconds minimum between posts
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -28,6 +32,26 @@ Deno.serve(async (req) => {
 
   try {
     const { content } = await req.json()
+
+    // Rate limiting check
+    const now = Date.now();
+    const timeSinceLastPost = now - lastPostTime;
+    
+    if (timeSinceLastPost < MIN_POST_INTERVAL) {
+      const waitTime = MIN_POST_INTERVAL - timeSinceLastPost;
+      console.log(`⏳ Rate limiting: ${waitTime}ms remaining before next post allowed`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Rate limited. Please wait ${Math.ceil(waitTime / 1000)} seconds before posting again.`,
+          retryAfter: waitTime
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
 
     // Get Supabase client to fetch stored auth
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -112,12 +136,12 @@ Deno.serve(async (req) => {
     }
 
     // Check if stored token is expired
-    const now = new Date()
+    const now_date = new Date()
     const expiresAt = new Date(authData.expires_at)
     
     let accessToken = authData.access_token
 
-    if (now >= expiresAt) {
+    if (now_date >= expiresAt) {
       // Try to refresh the token
       if (authData.refresh_token) {
         console.log('🔄 Access token expired, refreshing...')
@@ -171,10 +195,33 @@ Deno.serve(async (req) => {
 
     // Use the access token to post comment
     const userAgent = Deno.env.get('REDDIT_USER_AGENT') || 'SlipperyBananaBot/1.0'
-    return await postComment(accessToken, content, userAgent)
+    const result = await postComment(accessToken, content, userAgent)
+    
+    // Update last post time on successful post
+    if (result.ok) {
+      lastPostTime = Date.now()
+    }
+    
+    return result
 
   } catch (error) {
     console.error('❌ Error in post-reddit-comment function:', error)
+    
+    // Check if it's a rate limit error
+    if (error.message && error.message.includes('RATELIMIT')) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Reddit rate limit exceeded. Please wait before posting again.',
+          isRateLimit: true
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
+    
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       {
@@ -213,12 +260,24 @@ async function postComment(accessToken: string, content: string, userAgent: stri
       const errorJson = JSON.parse(errorText) as RedditErrorResponse
       if (errorJson.json?.errors && errorJson.json.errors.length > 0) {
         errorDetails = ` Reddit API errors: ${JSON.stringify(errorJson.json.errors)}`
+        
+        // Check for rate limit specifically
+        const hasRateLimit = errorJson.json.errors.some(error => 
+          error[0] === 'RATELIMIT' || error[1]?.includes('rate')
+        )
+        
+        if (hasRateLimit) {
+          throw new Error(`RATELIMIT: ${errorDetails}`)
+        }
       } else if (errorJson.error) {
         errorDetails = ` Error: ${errorJson.error}`
       } else if (errorJson.message) {
         errorDetails = ` Message: ${errorJson.message}`
       }
-    } catch {
+    } catch (parseError) {
+      if (parseError.message.includes('RATELIMIT')) {
+        throw parseError // Re-throw rate limit errors
+      }
       errorDetails = ` Response: ${errorText}`
     }
 
@@ -247,6 +306,16 @@ async function postComment(accessToken: string, content: string, userAgent: stri
   
   if (commentResult.json?.errors && commentResult.json.errors.length > 0) {
     console.error('❌ Reddit API returned errors:', commentResult.json.errors)
+    
+    // Check for rate limit in successful response
+    const hasRateLimit = commentResult.json.errors.some((error: any) => 
+      error[0] === 'RATELIMIT' || error[1]?.includes('rate')
+    )
+    
+    if (hasRateLimit) {
+      throw new Error(`RATELIMIT: Reddit API errors: ${JSON.stringify(commentResult.json.errors)}`)
+    }
+    
     throw new Error(`Reddit API errors: ${JSON.stringify(commentResult.json.errors)}`)
   }
 
