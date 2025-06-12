@@ -23,7 +23,7 @@ const AdminPanel: React.FC = () => {
   // Bot settings state
   const [botSettings, setBotSettings] = useState<BotSettings | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
-  const [settingsSaving, setSetting sSaving] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [tempSettings, setTempSettings] = useState<Partial<BotSettings>>({});
   const [nextCommentTime, setNextCommentTime] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
@@ -78,7 +78,7 @@ const AdminPanel: React.FC = () => {
     if (!botSettings) return;
     
     try {
-      setSetting sSaving(true);
+      setSettingsSaving(true);
       setError(null);
       
       const updatedSettings = await botSettingsService.updateSettings({
@@ -100,7 +100,7 @@ const AdminPanel: React.FC = () => {
       console.error('Failed to save bot settings:', err);
       setError('Failed to save bot settings');
     } finally {
-      setSetting sSaving(false);
+      setSettingsSaving(false);
     }
   };
 
