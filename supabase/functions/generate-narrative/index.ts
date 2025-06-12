@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.2.1";
+import { GoogleGenAI } from "npm:@google/genai@0.7.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,9 +24,10 @@ Deno.serve(async (req) => {
 
     console.log(`🤖 Generating narrative for ${incidents.length} incidents...`)
 
-    // Initialize Gemini AI with the latest model
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
+    // Initialize Gemini AI with the new API
+    const ai = new GoogleGenAI({
+      apiKey: geminiApiKey,
+    });
 
     // Create prompt for Gemini
     const incidentList = incidents
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
 
     const reportNumber = Math.floor(Math.random() * 9999) + 1;
 
-    const prompt = `Turn the following list of banana-related Reddit user actions into a silly, absurd, chaotic narrative report. 
+    const promptText = `Turn the following list of banana-related Reddit user actions into a silly, absurd, chaotic narrative report. 
 
 Make it fun and entertaining, like a news report from a fictional banana chaos simulator game. Use emojis and keep it under 500 characters. Start with "🍌 **Banana Chaos Report #${reportNumber}**".
 
@@ -44,19 +45,38 @@ ${incidentList}
 
 Create a short, funny report that summarizes these incidents in an entertaining way. End with "Stay slippery! 🍌" or similar.`
 
-    // Generate content
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const narrative = response.text();
+    const config = {
+      responseMimeType: 'text/plain',
+    };
+    
+    const model = 'gemini-2.0-flash-exp';
+    
+    const contents = [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: promptText,
+          },
+        ],
+      },
+    ];
 
-    if (!narrative || narrative.trim().length === 0) {
+    // Generate content using the new API
+    const response = await ai.models.generateContent({
+      model,
+      config,
+      contents,
+    });
+
+    if (!response.text || response.text.trim().length === 0) {
       throw new Error('Empty response from Gemini AI')
     }
 
     console.log('✅ Narrative generated successfully')
 
     return new Response(
-      JSON.stringify({ narrative: narrative.trim() }),
+      JSON.stringify({ narrative: response.text.trim() }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
