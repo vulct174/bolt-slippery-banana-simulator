@@ -24,9 +24,9 @@ Deno.serve(async (req) => {
 
     console.log(`🤖 Generating narrative for ${incidents.length} incidents...`)
 
-    // Initialize Gemini AI
+    // Initialize Gemini AI with the correct model name
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     // Create prompt for Gemini
     const incidentList = incidents
