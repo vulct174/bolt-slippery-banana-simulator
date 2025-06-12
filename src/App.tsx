@@ -4,16 +4,25 @@ import IncidentFeed from './components/IncidentFeed';
 import NarrativeFeed from './components/NarrativeFeed';
 import SlipButton from './components/SlipButton';
 import BoltBadge from './components/BoltBadge';
+import AdminPanel from './components/AdminPanel';
 import { startSimulationBot } from './services/api';
 
 function App() {
+  // Check if we're on the admin route
+  const isAdminRoute = window.location.pathname === '/admin';
+
   useEffect(() => {
-    // Start the simulation bot when the app loads
-    const cleanup = startSimulationBot();
-    
-    // Cleanup on unmount
-    return cleanup;
-  }, []);
+    // Only start the simulation bot if not on admin route
+    if (!isAdminRoute) {
+      const cleanup = startSimulationBot();
+      return cleanup;
+    }
+  }, [isAdminRoute]);
+
+  // Render admin panel if on admin route
+  if (isAdminRoute) {
+    return <AdminPanel />;
+  }
 
   const redditUrl = "https://www.reddit.com/r/SlipperyBanana/comments/1l8o3ot/official_banana_incident_thread_report_your_chaos/";
 
