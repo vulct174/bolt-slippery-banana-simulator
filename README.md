@@ -2,7 +2,10 @@
 
 > **Watch the Banana Mayhem Unfold!** A delightfully chaotic web app where users report their most ridiculous banana-related incidents, and AI transforms them into epic chronicles of slippery chaos.
 
-![Slippery Banana Simulator](https://images.pexels.com/photos/2872755/pexels-photo-2872755.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600&fit=crop)
+🔗 **Live Demo:** [https://gilded-faloodeh-e95bc0.netlify.app](https://gilded-faloodeh-e95bc0.netlify.app)  
+📂 **Repository:** [https://github.com/vulct174/bolt-slippery-banana-simulator](https://github.com/vulct174/bolt-slippery-banana-simulator)
+
+![Slippery Banana Simulator](./public/Slippery%20Banana%20Simulator.png)
 
 ## 🎭 What is This Madness?
 
@@ -12,10 +15,12 @@ Think of it as a collaborative storytelling experiment where human creativity me
 
 ## 📸 Screenshots
 
-![Main Interface](https://images.pexels.com/photos/1093038/pexels-photo-1093038.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop)
+### Main Interface
+![Main Interface](./public/Main%20Interface.png)
 *The main dashboard showing recent banana incidents and AI-generated chronicles*
 
-![Admin Panel](https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&fit=crop)
+### Admin Panel
+![Admin Panel](./public/Admin%20Panel.png)
 *Admin panel for managing bot settings and Reddit authentication*
 
 ## ✨ Key Features
@@ -62,8 +67,8 @@ Think of it as a collaborative storytelling experiment where human creativity me
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/slippery-banana-simulator.git
-cd slippery-banana-simulator
+git clone https://github.com/vulct174/bolt-slippery-banana-simulator.git
+cd bolt-slippery-banana-simulator
 ```
 
 ### 2. Install Dependencies
