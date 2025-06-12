@@ -2,18 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { Narrative } from '../lib/supabase';
 import { narrativeService } from '../services/narrativeService';
 import { AlertCircle, Loader, RefreshCw, Sparkles, MessageSquare } from 'lucide-react';
+import Pagination from './Pagination';
 
 const NarrativeFeed: React.FC = () => {
   const [narratives, setNarratives] = useState<Narrative[]>([]);
+  const [allNarratives, setAllNarratives] = useState<Narrative[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const loadNarratives = async () => {
     try {
       setRefreshing(true);
-      const data = await narrativeService.getRecentNarratives(10);
-      setNarratives(data);
+      // Fetch more narratives to enable pagination
+      const data = await narrativeService.getRecentNarratives(50);
+      setAllNarratives(data);
       setError(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '🍌 Failed to load banana narratives!';
@@ -24,8 +29,25 @@ const NarrativeFeed: React.FC = () => {
     }
   };
 
+  // Update displayed narratives when page changes
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setNarratives(allNarratives.slice(startIndex, endIndex));
+  }, [allNarratives, currentPage, itemsPerPage]);
+
   const handleRefresh = () => {
+    setCurrentPage(1);
     loadNarratives();
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Smooth scroll to top of the feed
+    document.getElementById('narrative-feed-top')?.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'start' 
+    });
   };
 
   useEffect(() => {
@@ -39,6 +61,8 @@ const NarrativeFeed: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const totalPages = Math.ceil(allNarratives.length / itemsPerPage);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center p-6">
@@ -50,7 +74,7 @@ const NarrativeFeed: React.FC = () => {
     );
   }
 
-  if (error && narratives.length === 0) {
+  if (error && allNarratives.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-6 bg-red-50 dark:bg-red-900/20 rounded-lg">
         <AlertCircle className="text-red-500 mb-2" size={32} />
@@ -67,7 +91,7 @@ const NarrativeFeed: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div id="narrative-feed-top" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-purple-600 dark:text-purple-400">
             AI Banana Chronicles
@@ -84,12 +108,21 @@ const NarrativeFeed: React.FC = () => {
         </button>
       </div>
 
-      {error && narratives.length > 0 && (
+      {error && allNarratives.length > 0 && (
         <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
           <AlertCircle className="text-yellow-600 dark:text-yellow-400" size={18} />
           <p className="text-yellow-700 dark:text-yellow-300 text-sm">
             Having trouble loading fresh narratives. Showing cached stories.
           </p>
+        </div>
+      )}
+
+      {/* Page indicator */}
+      {totalPages > 1 && (
+        <div className="text-center">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {narratives.length} of {allNarratives.length} total narratives
+          </span>
         </div>
       )}
       
@@ -134,8 +167,16 @@ const NarrativeFeed: React.FC = () => {
           </div>
         </div>
       ))}
+
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        theme="purple"
+      />
       
-      {narratives.length === 0 && !loading && !error && (
+      {allNarratives.length === 0 && !loading && !error && (
         <div className="text-center p-8 text-gray-500 dark:text-gray-400">
           <div className="text-4xl mb-4">🤖</div>
           <p className="text-lg">No AI narratives generated yet.</p>

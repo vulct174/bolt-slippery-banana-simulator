@@ -2,27 +2,26 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { BananaIncident } from '../lib/supabase';
 import { fetchIncidents } from '../services/api';
 import { AlertCircle, Loader, RefreshCw, Database, Globe } from 'lucide-react';
+import Pagination from './Pagination';
 
 const IncidentFeed: React.FC = () => {
   const [incidents, setIncidents] = useState<BananaIncident[]>([]);
+  const [allIncidents, setAllIncidents] = useState<BananaIncident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dataSource, setDataSource] = useState<'supabase' | 'reddit'>('supabase');
-  const observer = useRef<IntersectionObserver>();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
-  const loadIncidents = async (pageNum: number, append: boolean = false) => {
+  const loadIncidents = async () => {
     try {
-      if (pageNum === 1 && !append) {
-        setRefreshing(true);
-      }
+      setRefreshing(true);
       
-      const data = await fetchIncidents(pageNum, 20);
+      // Fetch a larger batch to enable proper pagination
+      const data = await fetchIncidents(1, 100);
       
-      setIncidents(prev => append ? [...prev, ...data.incidents] : data.incidents);
-      setHasMore(data.hasMore);
+      setAllIncidents(data.incidents);
       setError(null);
       
       // Detect data source based on response
@@ -41,41 +40,42 @@ const IncidentFeed: React.FC = () => {
     }
   };
 
-  const lastIncidentRef = useCallback((node: HTMLDivElement) => {
-    if (loading) return;
-    if (observer.current) observer.current.disconnect();
-    
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore) {
-        setPage(prev => prev + 1);
-      }
-    });
-
-    if (node) observer.current.observe(node);
-  }, [loading, hasMore]);
+  // Update displayed incidents when page changes
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setIncidents(allIncidents.slice(startIndex, endIndex));
+  }, [allIncidents, currentPage, itemsPerPage]);
 
   const handleRefresh = () => {
-    setPage(1);
-    loadIncidents(1, false);
+    setCurrentPage(1);
+    loadIncidents();
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Smooth scroll to top of the feed
+    document.getElementById('incident-feed-top')?.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'start' 
+    });
   };
 
   useEffect(() => {
-    if (page === 1) {
-      loadIncidents(1, false);
-    } else {
-      loadIncidents(page, true);
-    }
-  }, [page]);
+    loadIncidents();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      loadIncidents(1, false);
+      loadIncidents();
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
 
-  if (error && incidents.length === 0) {
+  const totalPages = Math.ceil(allIncidents.length / itemsPerPage);
+
+  if (error && allIncidents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-6 bg-red-50 dark:bg-red-900/20 rounded-lg">
         <AlertCircle className="text-red-500 mb-2" size={32} />
@@ -92,7 +92,7 @@ const IncidentFeed: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div id="incident-feed-top" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
             Recent Banana Chaos
@@ -121,7 +121,7 @@ const IncidentFeed: React.FC = () => {
         </button>
       </div>
 
-      {error && incidents.length > 0 && (
+      {error && allIncidents.length > 0 && (
         <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
           <AlertCircle className="text-yellow-600 dark:text-yellow-400" size={18} />
           <p className="text-yellow-700 dark:text-yellow-300 text-sm">
@@ -129,11 +129,19 @@ const IncidentFeed: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* Page indicator */}
+      {totalPages > 1 && (
+        <div className="text-center">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {incidents.length} of {allIncidents.length} total incidents
+          </span>
+        </div>
+      )}
       
       {incidents.map((incident, index) => (
         <div
           key={incident.id}
-          ref={index === incidents.length - 1 ? lastIncidentRef : null}
           className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md transform transition-all duration-300 hover:scale-102 border-l-4 border-yellow-400"
           style={{ 
             animationDelay: `${index * 50}ms`,
@@ -170,15 +178,16 @@ const IncidentFeed: React.FC = () => {
           </span>
         </div>
       )}
-      
-      {!hasMore && incidents.length > 0 && (
-        <div className="text-center p-4 text-gray-500 dark:text-gray-400">
-          <span className="text-2xl">🍌</span>
-          <p className="mt-2">No more banana incidents to load!</p>
-        </div>
-      )}
 
-      {incidents.length === 0 && !loading && !error && (
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        theme="yellow"
+      />
+      
+      {allIncidents.length === 0 && !loading && !error && (
         <div className="text-center p-8 text-gray-500 dark:text-gray-400">
           <span className="text-4xl mb-4 block">🍌</span>
           <p className="text-lg">No banana incidents yet. Be the first to slip!</p>
