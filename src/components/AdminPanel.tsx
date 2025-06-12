@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key } from 'lucide-react';
+import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key, ExternalLink } from 'lucide-react';
 
 interface RedditToken {
   access_token: string;
@@ -26,6 +26,20 @@ const AdminPanel: React.FC = () => {
       import.meta.env.VITE_REDDIT_CLIENT_SECRET &&
       import.meta.env.VITE_REDDIT_REDIRECT_URI
     );
+  };
+
+  // Get the correct redirect URI (should be the current domain + /admin)
+  const getRedirectUri = () => {
+    const envRedirectUri = import.meta.env.VITE_REDDIT_REDIRECT_URI;
+    const currentDomainRedirectUri = `${window.location.origin}/admin`;
+    
+    // If env variable is set and matches current domain, use it
+    if (envRedirectUri && envRedirectUri.includes(window.location.hostname)) {
+      return envRedirectUri;
+    }
+    
+    // Otherwise use current domain
+    return currentDomainRedirectUri;
   };
 
   // Check admin password
@@ -90,7 +104,10 @@ const AdminPanel: React.FC = () => {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ 
+          code,
+          redirect_uri: getRedirectUri()
+        }),
       });
 
       const data = await response.json();
@@ -111,9 +128,11 @@ const AdminPanel: React.FC = () => {
   // Start Reddit OAuth flow
   const handleRedditLogin = () => {
     const clientId = import.meta.env.VITE_REDDIT_CLIENT_ID;
-    const redirectUri = import.meta.env.VITE_REDDIT_REDIRECT_URI;
+    const redirectUri = getRedirectUri();
     const state = 'reddit_oauth_admin';
     const scope = 'identity,submit';
+    
+    console.log('Starting OAuth with redirect URI:', redirectUri);
     
     const authUrl = `https://www.reddit.com/api/v1/authorize?` +
       `client_id=${clientId}&` +
@@ -234,10 +253,12 @@ const AdminPanel: React.FC = () => {
   }
 
   if (!isConfigured()) {
+    const currentRedirectUri = getRedirectUri();
+    
     return (
       <div className="min-h-screen bg-gray-900 text-white p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-red-900/20 border border-red-800 rounded-lg p-6">
+          <div className="bg-red-900/20 border border-red-800 rounded-lg p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <AlertCircle className="text-red-400" size={24} />
               <h2 className="text-xl font-bold text-red-400">Configuration Required</h2>
@@ -251,6 +272,27 @@ const AdminPanel: React.FC = () => {
               <li><code className="bg-gray-800 px-2 py-1 rounded">VITE_REDDIT_REDIRECT_URI</code></li>
               <li><code className="bg-gray-800 px-2 py-1 rounded">VITE_REDDIT_USER_AGENT</code> (optional)</li>
             </ul>
+          </div>
+          
+          <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <ExternalLink className="text-blue-400" size={24} />
+              <h2 className="text-xl font-bold text-blue-400">Reddit App Setup Instructions</h2>
+            </div>
+            <div className="space-y-4 text-gray-300">
+              <p>To set up Reddit OAuth for this application:</p>
+              <ol className="list-decimal list-inside space-y-2">
+                <li>Go to <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Reddit App Preferences</a></li>
+                <li>Click "Create App" or "Create Another App"</li>
+                <li>Choose "web app" as the app type</li>
+                <li>Set the redirect URI to: <code className="bg-gray-800 px-2 py-1 rounded break-all">{currentRedirectUri}</code></li>
+                <li>Copy the client ID and secret to your environment variables</li>
+              </ol>
+              <div className="bg-gray-800 p-4 rounded-lg">
+                <p className="text-sm text-gray-400 mb-2">Required redirect URI for this deployment:</p>
+                <code className="text-green-400 break-all">{currentRedirectUri}</code>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -398,7 +440,7 @@ const AdminPanel: React.FC = () => {
                 <div>
                   <div className="text-gray-400">Redirect URI</div>
                   <div className="text-white font-mono break-all">
-                    {import.meta.env.VITE_REDDIT_REDIRECT_URI}
+                    {getRedirectUri()}
                   </div>
                 </div>
               </div>

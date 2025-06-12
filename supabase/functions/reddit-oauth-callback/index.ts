@@ -24,19 +24,22 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { code } = await req.json()
+    const { code, redirect_uri } = await req.json()
 
     // Get Reddit credentials from environment
     const clientId = Deno.env.get('REDDIT_CLIENT_ID')
     const clientSecret = Deno.env.get('REDDIT_CLIENT_SECRET')
-    const redirectUri = Deno.env.get('REDDIT_REDIRECT_URI')
     const userAgent = Deno.env.get('REDDIT_USER_AGENT') || 'SlipperyBananaBot/1.0'
+
+    // Use the redirect_uri from the request, or fall back to environment variable
+    const redirectUri = redirect_uri || Deno.env.get('REDDIT_REDIRECT_URI')
 
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error('Reddit OAuth credentials not configured')
     }
 
     console.log('🔄 Exchanging OAuth code for tokens...')
+    console.log('Using redirect URI:', redirectUri)
 
     // Exchange code for tokens
     const credentials = btoa(`${clientId}:${clientSecret}`)
@@ -58,7 +61,7 @@ Deno.serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('❌ Token exchange failed:', errorText)
-      throw new Error(`Token exchange failed: ${tokenResponse.status}`)
+      throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`)
     }
 
     const tokenData: RedditTokenResponse = await tokenResponse.json()
