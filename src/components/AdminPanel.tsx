@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key, ExternalLink } from 'lucide-react';
+import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key, ExternalLink, Settings, Clock, ToggleLeft, ToggleRight, Save } from 'lucide-react';
+import { botSettingsService, BotSettings } from '../services/botSettingsService';
 
 interface RedditToken {
   access_token: string;
@@ -18,6 +19,14 @@ const AdminPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [testingComment, setTestingComment] = useState(false);
+  
+  // Bot settings state
+  const [botSettings, setBotSettings] = useState<BotSettings | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSetting sSaving] = useState(false);
+  const [tempSettings, setTempSettings] = useState<Partial<BotSettings>>({});
+  const [nextCommentTime, setNextCommentTime] = useState<Date | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
 
   // Check if environment variables are configured
   const isConfigured = () => {
@@ -42,6 +51,93 @@ const AdminPanel: React.FC = () => {
     return currentDomainRedirectUri;
   };
 
+  // Load bot settings
+  const loadBotSettings = async () => {
+    try {
+      setSettingsLoading(true);
+      const settings = await botSettingsService.getSettings();
+      setBotSettings(settings);
+      setTempSettings(settings);
+      
+      // Check when next comment should be posted
+      const commentCheck = await botSettingsService.shouldPostComment();
+      if (commentCheck.nextCommentTime) {
+        setNextCommentTime(commentCheck.nextCommentTime);
+        setTimeRemaining(commentCheck.timeRemaining || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load bot settings:', err);
+      setError('Failed to load bot settings');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Save bot settings
+  const saveBotSettings = async () => {
+    if (!botSettings) return;
+    
+    try {
+      setSetting sSaving(true);
+      setError(null);
+      
+      const updatedSettings = await botSettingsService.updateSettings({
+        auto_comment_enabled: tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled,
+        min_interval_minutes: tempSettings.min_interval_minutes ?? botSettings.min_interval_minutes,
+        max_interval_minutes: tempSettings.max_interval_minutes ?? botSettings.max_interval_minutes
+      });
+      
+      setBotSettings(updatedSettings);
+      setSuccess('Bot settings saved successfully!');
+      
+      // Refresh comment timing
+      const commentCheck = await botSettingsService.shouldPostComment();
+      if (commentCheck.nextCommentTime) {
+        setNextCommentTime(commentCheck.nextCommentTime);
+        setTimeRemaining(commentCheck.timeRemaining || 0);
+      }
+    } catch (err) {
+      console.error('Failed to save bot settings:', err);
+      setError('Failed to save bot settings');
+    } finally {
+      setSetting sSaving(false);
+    }
+  };
+
+  // Update countdown timer
+  useEffect(() => {
+    if (!nextCommentTime || timeRemaining <= 0) return;
+    
+    const interval = setInterval(() => {
+      const now = new Date();
+      const remaining = nextCommentTime.getTime() - now.getTime();
+      
+      if (remaining <= 0) {
+        setTimeRemaining(0);
+        clearInterval(interval);
+        // Refresh settings to get new timing
+        loadBotSettings();
+      } else {
+        setTimeRemaining(remaining);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [nextCommentTime, timeRemaining]);
+
+  // Format time remaining
+  const formatTimeRemaining = (ms: number): string => {
+    if (ms <= 0) return 'Ready to post';
+    
+    const minutes = Math.floor(ms / (1000 * 60));
+    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+    
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+  };
+
   // Check admin password
   const handleAdminLogin = () => {
     const correctPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'banana_admin_2025';
@@ -50,6 +146,7 @@ const AdminPanel: React.FC = () => {
       setShowPasswordPrompt(false);
       setError(null);
       checkExistingAuth();
+      loadBotSettings();
     } else {
       setError('Invalid admin password');
     }
@@ -189,6 +286,9 @@ const AdminPanel: React.FC = () => {
       
       if (data.success) {
         setSuccess(`Test comment posted successfully! Comment ID: ${data.commentId}`);
+        // Update last comment time
+        await botSettingsService.updateLastCommentTime();
+        loadBotSettings(); // Refresh to update timing
       } else {
         setError(`Test comment failed: ${data.error}`);
       }
@@ -309,7 +409,7 @@ const AdminPanel: React.FC = () => {
                 <Shield className="text-red-500" size={32} />
                 <div>
                   <h1 className="text-2xl font-bold">Reddit Bot Admin Panel</h1>
-                  <p className="text-gray-400">Manage Reddit OAuth authentication</p>
+                  <p className="text-gray-400">Manage Reddit OAuth authentication and bot settings</p>
                 </div>
               </div>
               <div className="text-right">
@@ -339,6 +439,144 @@ const AdminPanel: React.FC = () => {
                 )}
               </div>
             )}
+
+            {/* Bot Settings */}
+            <div className="bg-gray-700 rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <Settings className="text-purple-400" size={24} />
+                <h2 className="text-xl font-bold">Bot Settings</h2>
+              </div>
+
+              {settingsLoading ? (
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Loader className="animate-spin" size={16} />
+                  Loading settings...
+                </div>
+              ) : botSettings ? (
+                <div className="space-y-6">
+                  {/* Auto Comment Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-gray-600 rounded-lg">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-white">Automatic Commenting</h3>
+                      <p className="text-sm text-gray-300">
+                        Enable or disable automatic posting of AI narratives to Reddit
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setTempSettings(prev => ({
+                        ...prev,
+                        auto_comment_enabled: !tempSettings.auto_comment_enabled
+                      }))}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
+                        tempSettings.auto_comment_enabled 
+                          ? 'bg-green-600 hover:bg-green-700 text-white' 
+                          : 'bg-gray-500 hover:bg-gray-400 text-gray-200'
+                      }`}
+                    >
+                      {tempSettings.auto_comment_enabled ? (
+                        <>
+                          <ToggleRight size={20} />
+                          Enabled
+                        </>
+                      ) : (
+                        <>
+                          <ToggleLeft size={20} />
+                          Disabled
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Interval Settings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Minimum Interval (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min="5"
+                        max="60"
+                        value={tempSettings.min_interval_minutes ?? botSettings.min_interval_minutes}
+                        onChange={(e) => setTempSettings(prev => ({
+                          ...prev,
+                          min_interval_minutes: parseInt(e.target.value)
+                        }))}
+                        className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Maximum Interval (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min="5"
+                        max="60"
+                        value={tempSettings.max_interval_minutes ?? botSettings.max_interval_minutes}
+                        onChange={(e) => setTempSettings(prev => ({
+                          ...prev,
+                          max_interval_minutes: parseInt(e.target.value)
+                        }))}
+                        className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Current Status */}
+                  <div className="bg-gray-600 rounded-lg p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Clock className="text-blue-400" size={20} />
+                      <h3 className="font-medium text-white">Current Status</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-400">Auto Comment</div>
+                        <div className={`font-medium ${botSettings.auto_comment_enabled ? 'text-green-400' : 'text-red-400'}`}>
+                          {botSettings.auto_comment_enabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Last Comment</div>
+                        <div className="text-white font-medium">
+                          {botSettings.last_comment_time 
+                            ? new Date(botSettings.last_comment_time).toLocaleString()
+                            : 'Never'
+                          }
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400">Next Comment</div>
+                        <div className="text-white font-medium">
+                          {botSettings.auto_comment_enabled 
+                            ? formatTimeRemaining(timeRemaining)
+                            : 'Disabled'
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={saveBotSettings}
+                      disabled={settingsSaving}
+                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg transition-colors duration-200"
+                    >
+                      {settingsSaving ? (
+                        <Loader className="animate-spin" size={16} />
+                      ) : (
+                        <Save size={16} />
+                      )}
+                      Save Settings
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-400">Failed to load bot settings</div>
+              )}
+            </div>
 
             {/* Reddit Authentication Status */}
             <div className="bg-gray-700 rounded-lg p-6">

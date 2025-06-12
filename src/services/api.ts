@@ -2,6 +2,7 @@ import { BananaIncident } from '../lib/supabase';
 import { fetchRedditIncidents } from './redditApi';
 import { saveIncidentsToSupabase, fetchIncidentsFromSupabase } from './supabaseService';
 import { narrativeService } from './narrativeService';
+import { botSettingsService } from './botSettingsService';
 
 // Fetch and save comments from Reddit to Supabase
 export const fetchAndSaveCommentsFromReddit = async (): Promise<number> => {
@@ -27,16 +28,34 @@ export const fetchAndSaveCommentsFromReddit = async (): Promise<number> => {
   }
 };
 
-// Generate and post narrative summary with improved error handling
+// Generate and post narrative summary with bot settings control
 export const generateNarrativeSummary = async (): Promise<void> => {
   try {
     console.log('🎭 Starting narrative generation...');
+    
+    // Check bot settings to see if we should post
+    const commentCheck = await botSettingsService.shouldPostComment();
+    
+    if (!commentCheck.shouldPost) {
+      if (commentCheck.timeRemaining && commentCheck.timeRemaining > 0) {
+        const minutes = Math.floor(commentCheck.timeRemaining / (1000 * 60));
+        const seconds = Math.floor((commentCheck.timeRemaining % (1000 * 60)) / 1000);
+        console.log(`⏰ Not time to post yet. Next comment in ${minutes}m ${seconds}s`);
+      } else {
+        console.log('🔇 Auto-commenting is disabled');
+      }
+      return;
+    }
+    
+    console.log('✅ Bot settings allow posting, proceeding with narrative generation...');
     
     const result = await narrativeService.generateAndPostNarrative();
     
     if (result.success) {
       if (result.narrative?.comment_id) {
         console.log(`🎉 Narrative generated and posted to Reddit successfully! Comment ID: ${result.narrative.comment_id}`);
+        // Update last comment time in bot settings
+        await botSettingsService.updateLastCommentTime();
       } else {
         console.log('🎉 Narrative generated and saved locally (Reddit posting was skipped due to rate limits or errors)');
       }
@@ -84,7 +103,26 @@ export const fetchIncidents = async (page: number = 1, limit: number = 20): Prom
   }
 };
 
-// Start the periodic Reddit fetching and narrative generation with improved timing
+// Calculate randomized interval based on bot settings
+const getRandomizedInterval = async (): Promise<number> => {
+  try {
+    const settings = await botSettingsService.getSettings();
+    const minMs = settings.min_interval_minutes * 60 * 1000;
+    const maxMs = settings.max_interval_minutes * 60 * 1000;
+    
+    // Generate random interval between min and max
+    const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+    
+    console.log(`🎲 Next narrative check in ${Math.floor(randomMs / (1000 * 60))} minutes`);
+    return randomMs;
+  } catch (error) {
+    console.error('❌ Failed to get bot settings, using default interval:', error);
+    // Default to 10 minutes if settings fail
+    return 10 * 60 * 1000;
+  }
+};
+
+// Start the periodic Reddit fetching and narrative generation with smart intervals
 export const startSimulationBot = () => {
   console.log('🤖 Starting Reddit comment fetcher and narrative generator bot...');
   
@@ -93,7 +131,7 @@ export const startSimulationBot = () => {
     console.error('❌ Initial Reddit fetch failed:', error);
   });
   
-  // Set up periodic fetching every 5 minutes (reduced from 10 to get more data)
+  // Set up periodic fetching every 5 minutes (for data collection)
   const fetchIntervalId = setInterval(() => {
     console.log('⏰ Running scheduled Reddit fetch...');
     fetchAndSaveCommentsFromReddit().catch(error => {
@@ -101,13 +139,35 @@ export const startSimulationBot = () => {
     });
   }, 300000); // 5 minutes = 300,000 milliseconds
   
-  // Set up periodic narrative generation every 15 minutes (increased to reduce rate limiting)
-  const narrativeIntervalId = setInterval(() => {
-    console.log('⏰ Running scheduled narrative generation...');
-    generateNarrativeSummary().catch(error => {
-      console.error('❌ Periodic narrative generation failed:', error);
-    });
-  }, 900000); // 15 minutes = 900,000 milliseconds
+  // Set up smart narrative generation with randomized intervals
+  let narrativeTimeoutId: NodeJS.Timeout;
+  
+  const scheduleNextNarrative = async () => {
+    try {
+      const interval = await getRandomizedInterval();
+      
+      narrativeTimeoutId = setTimeout(async () => {
+        console.log('⏰ Running scheduled narrative generation...');
+        try {
+          await generateNarrativeSummary();
+        } catch (error) {
+          console.error('❌ Periodic narrative generation failed:', error);
+        }
+        
+        // Schedule the next one
+        scheduleNextNarrative();
+      }, interval);
+    } catch (error) {
+      console.error('❌ Failed to schedule narrative generation:', error);
+      // Fallback to 10 minutes
+      narrativeTimeoutId = setTimeout(() => {
+        scheduleNextNarrative();
+      }, 10 * 60 * 1000);
+    }
+  };
+  
+  // Start the narrative scheduling
+  scheduleNextNarrative();
   
   // Generate initial narrative after 5 minutes to let more data accumulate
   setTimeout(() => {
@@ -118,13 +178,15 @@ export const startSimulationBot = () => {
   }, 300000); // 5 minutes = 300,000 milliseconds
   
   console.log('⏰ Reddit fetcher scheduled to run every 5 minutes');
-  console.log('🎭 Narrative generator scheduled to run every 15 minutes');
+  console.log('🎭 Narrative generator using smart randomized intervals');
   console.log('🚀 Initial narrative generation will run in 5 minutes');
   
   // Return cleanup function
   return () => {
     clearInterval(fetchIntervalId);
-    clearInterval(narrativeIntervalId);
+    if (narrativeTimeoutId) {
+      clearTimeout(narrativeTimeoutId);
+    }
     console.log('🛑 Reddit fetcher and narrative generator bots stopped');
   };
 };

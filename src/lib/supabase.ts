@@ -27,3 +27,13 @@ export interface Narrative {
   incident_count: number;
   hash: string;
 }
+
+export interface BotSettings {
+  id: string;
+  auto_comment_enabled: boolean;
+  min_interval_minutes: number;
+  max_interval_minutes: number;
+  last_comment_time: string | null;
+  created_at: string;
+  updated_at: string;
+}
