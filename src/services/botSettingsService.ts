@@ -23,19 +23,43 @@ class BotSettingsService {
 
       if (error) {
         console.error('❌ Error fetching bot settings:', error);
-        // Return default settings if none exist
-        return this.createDefaultSettings();
+        // If no settings exist, create default ones
+        if (error.code === 'PGRST116') { // No rows returned
+          console.log('📝 No bot settings found, creating default settings...');
+          return this.createDefaultSettings();
+        }
+        throw error;
       }
 
       return data;
     } catch (error) {
       console.error('❌ Failed to get bot settings:', error);
-      return this.createDefaultSettings();
+      // Try to create default settings as fallback
+      try {
+        return await this.createDefaultSettings();
+      } catch (createError) {
+        console.error('❌ Failed to create default settings:', createError);
+        // Return hardcoded defaults as last resort
+        return this.getHardcodedDefaults();
+      }
     }
   }
 
   async updateSettings(updates: Partial<Omit<BotSettings, 'id' | 'created_at' | 'updated_at'>>): Promise<BotSettings> {
     try {
+      console.log('🔄 Updating bot settings...', updates);
+      
+      // Validate input
+      if (updates.min_interval_minutes && (updates.min_interval_minutes < 1 || updates.min_interval_minutes > 60)) {
+        throw new Error('Minimum interval must be between 1 and 60 minutes');
+      }
+      if (updates.max_interval_minutes && (updates.max_interval_minutes < 1 || updates.max_interval_minutes > 60)) {
+        throw new Error('Maximum interval must be between 1 and 60 minutes');
+      }
+      if (updates.min_interval_minutes && updates.max_interval_minutes && updates.min_interval_minutes > updates.max_interval_minutes) {
+        throw new Error('Minimum interval cannot be greater than maximum interval');
+      }
+
       // Get current settings first
       const currentSettings = await this.getSettings();
       
@@ -51,7 +75,11 @@ class BotSettingsService {
 
       if (error) {
         console.error('❌ Error updating bot settings:', error);
-        throw error;
+        throw new Error(`Failed to update bot settings: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('No data returned from update operation');
       }
 
       console.log('✅ Bot settings updated successfully');
@@ -66,7 +94,7 @@ class BotSettingsService {
     try {
       const currentSettings = await this.getSettings();
       
-      await supabase
+      const { error } = await supabase
         .from('bot_settings')
         .update({
           last_comment_time: new Date().toISOString(),
@@ -74,14 +102,22 @@ class BotSettingsService {
         })
         .eq('id', currentSettings.id);
 
+      if (error) {
+        console.error('❌ Error updating last comment time:', error);
+        throw error;
+      }
+
       console.log('✅ Last comment time updated');
     } catch (error) {
       console.error('❌ Failed to update last comment time:', error);
+      // Don't throw here as this is not critical
     }
   }
 
   private async createDefaultSettings(): Promise<BotSettings> {
     try {
+      console.log('📝 Creating default bot settings...');
+      
       const { data, error } = await supabase
         .from('bot_settings')
         .insert({
@@ -94,32 +130,27 @@ class BotSettingsService {
 
       if (error) {
         console.error('❌ Error creating default settings:', error);
-        // Return hardcoded defaults if database fails
-        return {
-          id: 'default',
-          auto_comment_enabled: true,
-          min_interval_minutes: 8,
-          max_interval_minutes: 15,
-          last_comment_time: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+        throw error;
       }
 
+      console.log('✅ Default bot settings created');
       return data;
     } catch (error) {
       console.error('❌ Failed to create default settings:', error);
-      // Return hardcoded defaults if everything fails
-      return {
-        id: 'default',
-        auto_comment_enabled: true,
-        min_interval_minutes: 8,
-        max_interval_minutes: 15,
-        last_comment_time: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      throw error;
     }
+  }
+
+  private getHardcodedDefaults(): BotSettings {
+    return {
+      id: 'default',
+      auto_comment_enabled: true,
+      min_interval_minutes: 8,
+      max_interval_minutes: 15,
+      last_comment_time: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
   }
 
   // Calculate next comment time based on randomized interval

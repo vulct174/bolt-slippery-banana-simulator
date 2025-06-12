@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key, ExternalLink, Settings, Clock, ToggleLeft, ToggleRight, Save } from 'lucide-react';
-import { botSettingsService, BotSettings } from '../services/botSettingsService';
+import { botSettingsService } from '../services/botSettingsService';
+import { BotSettings } from '../lib/supabase';
 
 interface RedditToken {
   access_token: string;
@@ -55,7 +56,12 @@ const AdminPanel: React.FC = () => {
   const loadBotSettings = async () => {
     try {
       setSettingsLoading(true);
+      setError(null);
+      
+      console.log('🔄 Loading bot settings...');
       const settings = await botSettingsService.getSettings();
+      console.log('✅ Bot settings loaded:', settings);
+      
       setBotSettings(settings);
       setTempSettings(settings);
       
@@ -67,7 +73,8 @@ const AdminPanel: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load bot settings:', err);
-      setError('Failed to load bot settings');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error loading bot settings';
+      setError(`Failed to load bot settings: ${errorMessage}`);
     } finally {
       setSettingsLoading(false);
     }
@@ -81,10 +88,28 @@ const AdminPanel: React.FC = () => {
       setSettingsSaving(true);
       setError(null);
       
+      console.log('💾 Saving bot settings...', tempSettings);
+      
+      // Validate settings before saving
+      const minInterval = tempSettings.min_interval_minutes ?? botSettings.min_interval_minutes;
+      const maxInterval = tempSettings.max_interval_minutes ?? botSettings.max_interval_minutes;
+      
+      if (minInterval > maxInterval) {
+        throw new Error('Minimum interval cannot be greater than maximum interval');
+      }
+      
+      if (minInterval < 1 || minInterval > 60) {
+        throw new Error('Minimum interval must be between 1 and 60 minutes');
+      }
+      
+      if (maxInterval < 1 || maxInterval > 60) {
+        throw new Error('Maximum interval must be between 1 and 60 minutes');
+      }
+      
       const updatedSettings = await botSettingsService.updateSettings({
         auto_comment_enabled: tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled,
-        min_interval_minutes: tempSettings.min_interval_minutes ?? botSettings.min_interval_minutes,
-        max_interval_minutes: tempSettings.max_interval_minutes ?? botSettings.max_interval_minutes
+        min_interval_minutes: minInterval,
+        max_interval_minutes: maxInterval
       });
       
       setBotSettings(updatedSettings);
@@ -98,7 +123,8 @@ const AdminPanel: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to save bot settings:', err);
-      setError('Failed to save bot settings');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error saving bot settings';
+      setError(`Failed to save bot settings: ${errorMessage}`);
     } finally {
       setSettingsSaving(false);
     }
@@ -465,15 +491,15 @@ const AdminPanel: React.FC = () => {
                     <button
                       onClick={() => setTempSettings(prev => ({
                         ...prev,
-                        auto_comment_enabled: !tempSettings.auto_comment_enabled
+                        auto_comment_enabled: !(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
                       }))}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
-                        tempSettings.auto_comment_enabled 
+                        (tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
                           ? 'bg-green-600 hover:bg-green-700 text-white' 
                           : 'bg-gray-500 hover:bg-gray-400 text-gray-200'
                       }`}
                     >
-                      {tempSettings.auto_comment_enabled ? (
+                      {(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled) ? (
                         <>
                           <ToggleRight size={20} />
                           Enabled
@@ -495,12 +521,12 @@ const AdminPanel: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        min="5"
+                        min="1"
                         max="60"
                         value={tempSettings.min_interval_minutes ?? botSettings.min_interval_minutes}
                         onChange={(e) => setTempSettings(prev => ({
                           ...prev,
-                          min_interval_minutes: parseInt(e.target.value)
+                          min_interval_minutes: parseInt(e.target.value) || 1
                         }))}
                         className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
@@ -511,12 +537,12 @@ const AdminPanel: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        min="5"
+                        min="1"
                         max="60"
                         value={tempSettings.max_interval_minutes ?? botSettings.max_interval_minutes}
                         onChange={(e) => setTempSettings(prev => ({
                           ...prev,
-                          max_interval_minutes: parseInt(e.target.value)
+                          max_interval_minutes: parseInt(e.target.value) || 1
                         }))}
                         className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
