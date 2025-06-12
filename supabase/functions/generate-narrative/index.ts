@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
     // Initialize Gemini AI with the correct model name
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
 
     // Create prompt for Gemini
     const incidentList = incidents
