@@ -10,6 +10,14 @@ interface RedditTokenResponse {
   scope: string;
 }
 
+interface RedditErrorResponse {
+  json?: {
+    errors?: Array<[string, string, string?]>;
+  };
+  error?: string;
+  message?: string;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -56,11 +64,32 @@ Deno.serve(async (req) => {
     })
 
     if (!authResponse.ok) {
-      throw new Error(`Reddit auth failed: ${authResponse.status} ${authResponse.statusText}`)
+      const authError = await authResponse.text()
+      console.error('❌ Reddit authentication failed:', {
+        status: authResponse.status,
+        statusText: authResponse.statusText,
+        error: authError
+      })
+      throw new Error(`Reddit auth failed: ${authResponse.status} ${authResponse.statusText}. Response: ${authError}`)
     }
 
     const tokenData: RedditTokenResponse = await authResponse.json()
-    console.log('✅ Reddit authentication successful')
+    console.log('✅ Reddit authentication successful. Scopes:', tokenData.scope)
+
+    // Check if we have the required scopes
+    if (!tokenData.scope || !tokenData.scope.includes('submit')) {
+      console.warn('⚠️ Missing required "submit" scope for posting comments')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Reddit app missing "submit" scope. Please check your Reddit app configuration.' 
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
 
     // Post comment to the specific thread
     const POST_ID = '1l8o3ot'
@@ -82,12 +111,48 @@ Deno.serve(async (req) => {
     })
 
     if (!commentResponse.ok) {
-      throw new Error(`Reddit comment failed: ${commentResponse.status} ${commentResponse.statusText}`)
+      const errorText = await commentResponse.text()
+      let errorDetails = ''
+      
+      try {
+        const errorJson = JSON.parse(errorText) as RedditErrorResponse
+        if (errorJson.json?.errors && errorJson.json.errors.length > 0) {
+          errorDetails = ` Reddit API errors: ${JSON.stringify(errorJson.json.errors)}`
+        } else if (errorJson.error) {
+          errorDetails = ` Error: ${errorJson.error}`
+        } else if (errorJson.message) {
+          errorDetails = ` Message: ${errorJson.message}`
+        }
+      } catch {
+        errorDetails = ` Response: ${errorText}`
+      }
+
+      console.error('❌ Reddit comment failed:', {
+        status: commentResponse.status,
+        statusText: commentResponse.statusText,
+        response: errorText,
+        username: username,
+        postId: POST_ID
+      })
+
+      // Provide specific guidance based on error type
+      let userFriendlyError = `Reddit comment failed: ${commentResponse.status} ${commentResponse.statusText}`
+      
+      if (commentResponse.status === 403) {
+        userFriendlyError += '. This usually means: 1) Your Reddit account is restricted/shadowbanned, 2) Your account lacks permission to post in this subreddit, or 3) Your Reddit app needs the "submit" scope enabled.'
+      } else if (commentResponse.status === 401) {
+        userFriendlyError += '. Authentication failed - please check your Reddit credentials.'
+      }
+
+      userFriendlyError += errorDetails
+
+      throw new Error(userFriendlyError)
     }
 
     const commentResult = await commentResponse.json()
     
     if (commentResult.json?.errors && commentResult.json.errors.length > 0) {
+      console.error('❌ Reddit API returned errors:', commentResult.json.errors)
       throw new Error(`Reddit API errors: ${JSON.stringify(commentResult.json.errors)}`)
     }
 
@@ -102,7 +167,7 @@ Deno.serve(async (req) => {
         },
       )
     } else {
-      console.warn('⚠️ Narrative posted but no comment ID returned')
+      console.warn('⚠️ Narrative posted but no comment ID returned. Full response:', commentResult)
       return new Response(
         JSON.stringify({ success: true, commentId: null }),
         {
