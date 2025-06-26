@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key, ExternalLink, Settings, Clock, ToggleLeft, ToggleRight, Save } from 'lucide-react';
+import { Shield, LogIn, LogOut, TestTube, CheckCircle, AlertCircle, Loader, Key, ExternalLink, Settings, Clock, ToggleLeft, ToggleRight, Save, Zap, MessageSquareOff } from 'lucide-react';
 import { botSettingsService } from '../services/botSettingsService';
 import { BotSettings } from '../lib/supabase';
 
@@ -481,36 +481,68 @@ const AdminPanel: React.FC = () => {
               ) : botSettings ? (
                 <div className="space-y-6">
                   {/* Auto Comment Toggle */}
-                  <div className="flex items-center justify-between p-4 bg-gray-600 rounded-lg">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-white">Automatic Commenting</h3>
-                      <p className="text-sm text-gray-300">
-                        Enable or disable automatic posting of AI narratives to Reddit
+                  <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-6 border border-purple-700/50">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Zap className="text-yellow-400" size={24} />
+                        <div>
+                          <h3 className="text-lg font-bold text-white">Automatic Comment Posting</h3>
+                          <p className="text-sm text-gray-300">
+                            Control whether the bot posts AI-generated narratives to Reddit automatically
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setTempSettings(prev => ({
+                          ...prev,
+                          auto_comment_enabled: !(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
+                        }))}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 ${
+                          (tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
+                            ? 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white shadow-lg shadow-green-500/25' 
+                            : 'bg-gradient-to-r from-gray-600 to-gray-500 hover:from-gray-700 hover:to-gray-600 text-gray-200 shadow-lg shadow-gray-500/25'
+                        }`}
+                      >
+                        {(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled) ? (
+                          <>
+                            <ToggleRight size={24} />
+                            <span className="font-bold">ENABLED</span>
+                          </>
+                        ) : (
+                          <>
+                            <ToggleLeft size={24} />
+                            <span className="font-bold">DISABLED</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    {/* Status explanation */}
+                    <div className={`p-4 rounded-lg border-l-4 ${
+                      (tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
+                        ? 'bg-green-900/20 border-green-500 text-green-200'
+                        : 'bg-orange-900/20 border-orange-500 text-orange-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled) ? (
+                          <MessageSquareOff className="text-green-400" size={16} />
+                        ) : (
+                          <Zap className="text-orange-400" size={16} />
+                        )}
+                        <span className="font-medium">
+                          {(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled) 
+                            ? 'Full Automation Active' 
+                            : 'Silent Mode Active'
+                          }
+                        </span>
+                      </div>
+                      <p className="text-sm">
+                        {(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
+                          ? 'The bot will generate AI narratives AND automatically post them to Reddit according to the interval settings below.'
+                          : 'The bot will generate AI narratives and save them locally, but will NOT post them to Reddit automatically. You can still test posting manually.'
+                        }
                       </p>
                     </div>
-                    <button
-                      onClick={() => setTempSettings(prev => ({
-                        ...prev,
-                        auto_comment_enabled: !(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
-                      }))}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
-                        (tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled)
-                          ? 'bg-green-600 hover:bg-green-700 text-white' 
-                          : 'bg-gray-500 hover:bg-gray-400 text-gray-200'
-                      }`}
-                    >
-                      {(tempSettings.auto_comment_enabled ?? botSettings.auto_comment_enabled) ? (
-                        <>
-                          <ToggleRight size={20} />
-                          Enabled
-                        </>
-                      ) : (
-                        <>
-                          <ToggleLeft size={20} />
-                          Disabled
-                        </>
-                      )}
-                    </button>
                   </div>
 
                   {/* Interval Settings */}
@@ -530,6 +562,9 @@ const AdminPanel: React.FC = () => {
                         }))}
                         className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Minimum time between narrative generations
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -546,6 +581,9 @@ const AdminPanel: React.FC = () => {
                         }))}
                         className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Maximum time between narrative generations
+                      </p>
                     </div>
                   </div>
 
@@ -558,8 +596,18 @@ const AdminPanel: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <div className="text-gray-400">Auto Comment</div>
-                        <div className={`font-medium ${botSettings.auto_comment_enabled ? 'text-green-400' : 'text-red-400'}`}>
-                          {botSettings.auto_comment_enabled ? 'Enabled' : 'Disabled'}
+                        <div className={`font-medium flex items-center gap-2 ${botSettings.auto_comment_enabled ? 'text-green-400' : 'text-orange-400'}`}>
+                          {botSettings.auto_comment_enabled ? (
+                            <>
+                              <Zap size={14} />
+                              Enabled
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquareOff size={14} />
+                              Silent Mode
+                            </>
+                          )}
                         </div>
                       </div>
                       <div>
@@ -572,11 +620,11 @@ const AdminPanel: React.FC = () => {
                         </div>
                       </div>
                       <div>
-                        <div className="text-gray-400">Next Comment</div>
+                        <div className="text-gray-400">Next Action</div>
                         <div className="text-white font-medium">
                           {botSettings.auto_comment_enabled 
                             ? formatTimeRemaining(timeRemaining)
-                            : 'Disabled'
+                            : 'Generate Only'
                           }
                         </div>
                       </div>

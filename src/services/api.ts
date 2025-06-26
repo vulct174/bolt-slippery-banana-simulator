@@ -28,36 +28,36 @@ export const fetchAndSaveCommentsFromReddit = async (): Promise<number> => {
   }
 };
 
-// Generate and post narrative summary with bot settings control
+// Generate narrative summary with enhanced bot settings control
 export const generateNarrativeSummary = async (): Promise<void> => {
   try {
     console.log('🎭 Starting narrative generation...');
     
-    // Check bot settings to see if we should post
+    // Check bot settings to see if we should generate content
     const commentCheck = await botSettingsService.shouldPostComment();
     
     if (!commentCheck.shouldPost) {
       if (commentCheck.timeRemaining && commentCheck.timeRemaining > 0) {
         const minutes = Math.floor(commentCheck.timeRemaining / (1000 * 60));
         const seconds = Math.floor((commentCheck.timeRemaining % (1000 * 60)) / 1000);
-        console.log(`⏰ Not time to post yet. Next comment in ${minutes}m ${seconds}s`);
+        console.log(`⏰ Not time to generate yet. Next generation in ${minutes}m ${seconds}s`);
       } else {
-        console.log('🔇 Auto-commenting is disabled');
+        console.log('🔇 Content generation is disabled');
       }
       return;
     }
     
-    console.log('✅ Bot settings allow posting, proceeding with narrative generation...');
+    console.log('✅ Bot settings allow content generation, proceeding...');
     
     const result = await narrativeService.generateAndPostNarrative();
     
     if (result.success) {
-      if (result.narrative?.comment_id) {
-        console.log(`🎉 Narrative generated and posted to Reddit successfully! Comment ID: ${result.narrative.comment_id}`);
-        // Update last comment time in bot settings
-        await botSettingsService.updateLastCommentTime();
+      if (result.mode === 'full' && result.narrative?.comment_id) {
+        console.log(`🎉 Full automation completed! Narrative generated and posted to Reddit. Comment ID: ${result.narrative.comment_id}`);
+      } else if (result.mode === 'silent') {
+        console.log('🎉 Silent mode completed! Narrative generated and saved locally (auto-posting disabled)');
       } else {
-        console.log('🎉 Narrative generated and saved locally (Reddit posting was skipped due to rate limits or errors)');
+        console.log('🎉 Narrative generated and saved locally (Reddit posting failed due to rate limits or errors)');
       }
     } else {
       console.log(`⚠️ Narrative generation skipped: ${result.error}`);

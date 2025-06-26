@@ -1,5 +1,6 @@
 import { supabase, BananaIncident, Narrative } from '../lib/supabase';
 import { geminiService } from './geminiService';
+import { botSettingsService } from './botSettingsService';
 
 const SUBREDDIT = 'SlipperyBanana';
 const POST_ID = '1l8o3ot';
@@ -191,7 +192,7 @@ export class NarrativeService {
     }
   }
 
-  async generateAndPostNarrative(): Promise<{ success: boolean; narrative?: Narrative; error?: string }> {
+  async generateAndPostNarrative(): Promise<{ success: boolean; narrative?: Narrative; error?: string; mode?: 'full' | 'silent' }> {
     try {
       console.log('🎭 Starting narrative generation process...');
 
@@ -220,29 +221,47 @@ export class NarrativeService {
         return { success: false, error: 'Generated narrative is duplicate' };
       }
 
-      // Try to post to Reddit (with improved error handling)
+      // Check bot settings to determine if we should post to Reddit
+      const settings = await botSettingsService.getSettings();
       let commentId: string | null = null;
-      try {
-        commentId = await this.postNarrativeToReddit(content);
-        if (commentId) {
-          console.log('✅ Successfully posted to Reddit');
-        } else {
-          console.log('⚠️ Reddit posting failed, but continuing with local save');
+      let mode: 'full' | 'silent' = 'silent';
+
+      if (settings.auto_comment_enabled) {
+        // Full automation mode - generate and post
+        mode = 'full';
+        console.log('🚀 Auto-comment enabled - attempting to post to Reddit...');
+        
+        try {
+          commentId = await this.postNarrativeToReddit(content);
+          if (commentId) {
+            console.log('✅ Successfully posted to Reddit');
+            // Update last comment time in bot settings
+            await botSettingsService.updateLastCommentTime();
+          } else {
+            console.log('⚠️ Reddit posting failed, but continuing with local save');
+          }
+        } catch (postError) {
+          console.warn('⚠️ Reddit posting encountered an error, but continuing with local save:', postError);
         }
-      } catch (postError) {
-        console.warn('⚠️ Reddit posting encountered an error, but continuing with local save:', postError);
+      } else {
+        // Silent mode - generate only, don't post
+        console.log('🔇 Auto-comment disabled - generating narrative in silent mode (no Reddit posting)');
       }
 
-      // Always save to database, regardless of Reddit posting success
+      // Always save to database, regardless of Reddit posting success or mode
       const narrative = await this.saveNarrative(content, incidents.length, commentId || undefined);
 
-      if (commentId) {
-        console.log('🎉 Narrative generation and Reddit posting completed successfully');
+      if (mode === 'full') {
+        if (commentId) {
+          console.log('🎉 Full automation completed: Narrative generated and posted to Reddit successfully');
+        } else {
+          console.log('🎉 Narrative generated and saved locally (Reddit posting failed due to rate limits or errors)');
+        }
       } else {
-        console.log('🎉 Narrative generated and saved locally (Reddit posting skipped due to rate limits)');
+        console.log('🎉 Silent mode completed: Narrative generated and saved locally (auto-posting disabled)');
       }
       
-      return { success: true, narrative };
+      return { success: true, narrative, mode };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
